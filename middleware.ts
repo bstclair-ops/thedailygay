@@ -1,25 +1,10 @@
-import { auth } from '@/lib/auth'
-import { NextResponse } from 'next/server'
+import NextAuth from 'next-auth'
+import { authConfig } from '@/lib/auth.config'
 
-export default auth((req) => {
-  const { pathname } = req.nextUrl
+// Use the edge-safe config (no Prisma imports) for middleware
+export const { auth: middleware } = NextAuth(authConfig)
 
-  // Always allow the login page
-  if (pathname === '/admin/login') return NextResponse.next()
-
-  const session = req.auth
-
-  if (!session?.user) {
-    return NextResponse.redirect(new URL('/admin/login', req.url))
-  }
-
-  const role = (session.user as any).role
-  if (role !== 'ADMIN' && role !== 'EDITOR') {
-    return NextResponse.redirect(new URL('/', req.url))
-  }
-
-  return NextResponse.next()
-})
+export default middleware
 
 export const config = {
   matcher: ['/admin/:path*'],
