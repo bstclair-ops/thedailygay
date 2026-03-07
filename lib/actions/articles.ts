@@ -77,19 +77,25 @@ export async function createPost(data: {
   authorId: string
   published?: boolean
 }): Promise<{ id: string; slug: string }> {
-  const { tagIds, published, ...rest } = data
-  const post = await prisma.post.create({
-    data: {
-      ...rest,
-      published: published ?? false,
-      publishedAt: published ? new Date() : null,
-      tags: tagIds?.length
-        ? { create: tagIds.map((tagId) => ({ tagId })) }
-        : undefined,
-    },
-  })
-  revalidatePath('/')
-  return { id: post.id, slug: post.slug }
+  try {
+    const { tagIds, published, ...rest } = data
+    const post = await prisma.post.create({
+      data: {
+        ...rest,
+        published: published ?? false,
+        publishedAt: published ? new Date() : null,
+        tags: tagIds?.length
+          ? { create: tagIds.map((tagId) => ({ tagId })) }
+          : undefined,
+      },
+    })
+    revalidatePath('/')
+    return { id: post.id, slug: post.slug }
+  } catch (err) {
+    throw new Error(
+      err instanceof Error ? err.message : 'Failed to create post'
+    )
+  }
 }
 
 export async function updatePost(
@@ -105,62 +111,83 @@ export async function updatePost(
     published?: boolean
   }
 ): Promise<void> {
-  const { tagIds, published, ...rest } = data
-  // Resolve publish state change
-  const publishData: Record<string, any> = {}
-  if (published !== undefined) {
-    const current = await prisma.post.findUnique({ where: { id }, select: { published: true } })
-    publishData.published = published
-    // Set publishedAt when transitioning to published
-    if (published && !current?.published) {
-      publishData.publishedAt = new Date()
-    } else if (!published) {
-      publishData.publishedAt = null
+  try {
+    const { tagIds, published, ...rest } = data
+    // Resolve publish state change
+    const publishData: Record<string, any> = {}
+    if (published !== undefined) {
+      const current = await prisma.post.findUnique({ where: { id }, select: { published: true } })
+      publishData.published = published
+      if (published && !current?.published) {
+        publishData.publishedAt = new Date()
+      } else if (!published) {
+        publishData.publishedAt = null
+      }
     }
-  }
 
-  await prisma.post.update({
-    where: { id },
-    data: {
-      ...rest,
-      ...publishData,
-      ...(tagIds !== undefined
-        ? {
-            tags: {
-              deleteMany: {},
-              create: tagIds.map((tagId) => ({ tagId })),
-            },
-          }
-        : {}),
-    },
-  })
-  const post = await prisma.post.findUnique({ where: { id }, select: { slug: true } })
-  if (post) revalidatePath(`/article/${post.slug}`)
-  revalidatePath('/')
-  revalidatePath('/admin/articles')
+    await prisma.post.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...publishData,
+        ...(tagIds !== undefined
+          ? {
+              tags: {
+                deleteMany: {},
+                create: tagIds.map((tagId) => ({ tagId })),
+              },
+            }
+          : {}),
+      },
+    })
+    const post = await prisma.post.findUnique({ where: { id }, select: { slug: true } })
+    if (post) revalidatePath(`/article/${post.slug}`)
+    revalidatePath('/')
+    revalidatePath('/admin/articles')
+  } catch (err) {
+    throw new Error(
+      err instanceof Error ? err.message : 'Failed to update post'
+    )
+  }
 }
 
 export async function deletePost(id: string): Promise<void> {
-  await prisma.post.delete({ where: { id } })
-  revalidatePath('/')
-  revalidatePath('/admin/articles')
+  try {
+    await prisma.post.delete({ where: { id } })
+    revalidatePath('/')
+    revalidatePath('/admin/articles')
+  } catch (err) {
+    throw new Error(
+      err instanceof Error ? err.message : 'Failed to delete post'
+    )
+  }
 }
 
 export async function togglePublish(id: string): Promise<void> {
-  const post = await prisma.post.findUnique({ where: { id }, select: { published: true, slug: true } })
-  if (!post) return
-  await prisma.post.update({
-    where: { id },
-    data: {
-      published: !post.published,
-      publishedAt: !post.published ? new Date() : null,
-    },
-  })
-  revalidatePath(`/article/${post.slug}`)
-  revalidatePath('/')
-  revalidatePath('/admin/articles')
+  try {
+    const post = await prisma.post.findUnique({ where: { id }, select: { published: true, slug: true } })
+    if (!post) return
+    await prisma.post.update({
+      where: { id },
+      data: {
+        published: !post.published,
+        publishedAt: !post.published ? new Date() : null,
+      },
+    })
+    revalidatePath(`/article/${post.slug}`)
+    revalidatePath('/')
+    revalidatePath('/admin/articles')
+  } catch (err) {
+    throw new Error(
+      err instanceof Error ? err.message : 'Failed to toggle publish state'
+    )
+  }
 }
 
 export async function getTags() {
-  return prisma.tag.findMany({ orderBy: { name: 'asc' } })
+  try {
+    return await prisma.tag.findMany({ orderBy: { name: 'asc' } })
+  } catch {
+    return []
+  }
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { uploadImage } from '@/lib/actions/upload'
 
 interface ImageUploadProps {
   value?: string
@@ -19,7 +18,19 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const { url } = await uploadImage(formData)
+
+      // Use API route instead of server action — server actions have a 1MB body limit
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Upload failed (${res.status})`)
+      }
+
+      const { url } = await res.json()
       onChange(url)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
